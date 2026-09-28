@@ -285,15 +285,30 @@ function main() {
     : KEY_PATH;
 
   let privateKey;
-  if (fs.existsSync(keyPath)) {
+  try {
     privateKey = crypto.createPrivateKey(fs.readFileSync(keyPath));
     console.log('复用已有私钥：' + keyPath);
-  } else {
+  } catch (e) {
+    if (!e || e.code !== 'ENOENT') throw e;
     const pair = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
     privateKey = pair.privateKey;
-    fs.writeFileSync(keyPath, privateKey.export({ type: 'pkcs8', format: 'pem' }), { mode: 0o600 });
-    console.log('已生成新私钥：' + keyPath);
-    if (!EPHEMERAL) {
+    const pem = privateKey.export({ type: 'pkcs8', format: 'pem' });
+    let generated = false;
+    try {
+      const fd = fs.openSync(keyPath, fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_WRONLY, 0o600);
+      try {
+        fs.writeFileSync(fd, pem);
+      } finally {
+        fs.closeSync(fd);
+      }
+      generated = true;
+      console.log('已生成新私钥：' + keyPath);
+    } catch (writeErr) {
+      if (!writeErr || writeErr.code !== 'EEXIST') throw writeErr;
+      privateKey = crypto.createPrivateKey(fs.readFileSync(keyPath));
+      console.log('复用已有私钥：' + keyPath);
+    }
+    if (generated && !EPHEMERAL) {
       console.log('');
       console.log('⚠️  dist/ 里没有私钥，所以新生成了一对。');
       console.log('    私钥决定扩展 ID —— 请把 ' + keyPath + ' 备份到安全的地方。');
