@@ -4,11 +4,18 @@
  * 不依赖任何三方库：ZIP 用 zlib 手写，CRX3 头用 protobuf 手写，签名用 node:crypto。
  *
  * 做三件事：
- *   1. 生成（或复用）RSA 私钥 → 顺手把公钥写回 manifest.json 的 "key"，让扩展 ID 固定下来
+ *   1. 生成（或复用）RSA 私钥 → 把公钥写回 manifest.json 的 "key"，让扩展 ID 固定下来
  *   2. 打一个标准 ZIP
  *   3. 包成 CRX3（"Cr24" + version + header + zip），并自检签名
  *
- * 用法：node pack-crx.mjs
+ * 用法：node pack-crx.mjs [--ephemeral] [--allow-id-change]
+ *
+ *   --ephemeral         不碰 manifest.json，密钥临时生成在系统临时目录（CI 用这个）
+ *   --allow-id-change   确实要换扩展 ID 时才加（会覆盖 manifest 里已有的 "key"）
+ *
+ * ⚠️ 这里会**改动源文件** manifest.json。扩展 ID 由 "key" 决定，换掉它会让已经装上
+ *    的扩展在 chrome.storage 里存的配置全部失联。所以当 manifest 里已经有另一把 key、
+ *    而 dist/ 里的私钥又不是它的那一把时，脚本会**拒绝执行**（而不是静默改掉 ID）。
  * 输出：<工作区>/dist/zf-xk-helper-<version>.crx
  *       <工作区>/dist/zf-xk-helper-<version>.zip   （同上内容，方便别人解压后「加载已解压」）
  *       <工作区>/dist/zf-xk-helper.pem             （私钥，务必留着 —— 丢了就换 ID）
@@ -18,6 +25,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
 import crypto from 'node:crypto';
+import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -25,6 +33,9 @@ const EXT_DIR = path.resolve(SCRIPT_DIR, '..');
 const WORKSPACE = path.resolve(EXT_DIR, '..');
 const OUT_DIR = path.join(WORKSPACE, 'dist');
 const KEY_PATH = path.join(OUT_DIR, 'zf-xk-helper.pem');
+
+const EPHEMERAL = process.argv.includes('--ephemeral');
+const ALLOW_ID_CHANGE = process.argv.includes('--allow-id-change');
 
 const MANIFEST_PATH = path.join(EXT_DIR, 'manifest.json');
 // tools/ 只是开发工具（图标生成、打包脚本本身），不该混进发给 Chrome 的产物里
@@ -267,15 +278,26 @@ function main() {
   fs.mkdirSync(OUT_DIR, { recursive: true });
 
   // 1) 密钥
+  //    --ephemeral：密钥落在系统临时目录，且**不碰 manifest.json**。
+  //    给 CI 用：在没有 .pem 的环境里也能完整跑通打包 + 验签，而不会改掉扩展 ID。
+  const keyPath = EPHEMERAL
+    ? path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'zxh-ephemeral-')), 'ephemeral.pem')
+    : KEY_PATH;
+
   let privateKey;
-  if (fs.existsSync(KEY_PATH)) {
-    privateKey = crypto.createPrivateKey(fs.readFileSync(KEY_PATH));
-    console.log('复用已有私钥：' + KEY_PATH);
+  if (fs.existsSync(keyPath)) {
+    privateKey = crypto.createPrivateKey(fs.readFileSync(keyPath));
+    console.log('复用已有私钥：' + keyPath);
   } else {
     const pair = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
     privateKey = pair.privateKey;
-    fs.writeFileSync(KEY_PATH, privateKey.export({ type: 'pkcs8', format: 'pem' }), { mode: 0o600 });
-    console.log('已生成新私钥：' + KEY_PATH);
+    fs.writeFileSync(keyPath, privateKey.export({ type: 'pkcs8', format: 'pem' }), { mode: 0o600 });
+    console.log('已生成新私钥：' + keyPath);
+    if (!EPHEMERAL) {
+      console.log('');
+      console.log('⚠️  dist/ 里没有私钥，所以新生成了一对。');
+      console.log('    私钥决定扩展 ID —— 请把 ' + keyPath + ' 备份到安全的地方。');
+    }
   }
   const spki = crypto.createPublicKey(privateKey).export({ type: 'spki', format: 'der' });
   const crxId = crypto.createHash('sha256').update(spki).digest().subarray(0, 16);
@@ -285,12 +307,27 @@ function main() {
   const manifestRaw = fs.readFileSync(MANIFEST_PATH, 'utf8');
   const manifest = JSON.parse(manifestRaw);
   const keyB64 = spki.toString('base64');
-  if (manifest.key !== keyB64) {
+
+  if (EPHEMERAL) {
+    console.log('--ephemeral：跳过写回 manifest.json（扩展 ID 保持 \'' +
+      extensionId(crypto.createHash('sha256')
+        .update(Buffer.from(manifest.key || '', 'base64')).digest().subarray(0, 16)) + '\'）');
+  } else if (manifest.key === keyB64) {
+    console.log('manifest.json 的 "key" 已是最新');
+  } else if (manifest.key && !ALLOW_ID_CHANGE) {
+    const oldId = extensionId(crypto.createHash('sha256')
+      .update(Buffer.from(manifest.key, 'base64')).digest().subarray(0, 16));
+    console.error('');
+    console.error('✘ 拒绝执行：这一步会把扩展 ID 从 ' + oldId + ' 改成 ' + extId);
+    console.error('  manifest.json 里已经写着一把固定的 "key"，但 dist/ 里的私钥不是它的那一把。');
+    console.error('  覆盖 "key" 会让已经装好的扩展失去 chrome.storage 里的全部配置。');
+    console.error('  · 只想打包做验证 → 加 --ephemeral（不碰 manifest）');
+    console.error('  · 确实要换 ID      → 先备份 dist/，再加 --allow-id-change');
+    process.exit(2);
+  } else {
     const next = { ...manifest, key: keyB64 };
     fs.writeFileSync(MANIFEST_PATH, JSON.stringify(next, null, 2) + '\n', 'utf8');
-    console.log('已把 "key" 写入 manifest.json（扩展 ID 从此固定）');
-  } else {
-    console.log('manifest.json 的 "key" 已是最新');
+    console.log('已把 "key" 写入 manifest.json（扩展 ID 固定为 ' + extId + '）');
   }
 
   const version = manifest.version;

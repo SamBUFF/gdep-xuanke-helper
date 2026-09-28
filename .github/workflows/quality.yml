@@ -2,8 +2,8 @@ name: quality
 
 # 质量门禁：每次 push / PR 都跑一遍全量自测。
 # 这里跑的东西**不需要浏览器**——把 content.js 里的纯函数切片抽出来离线跑。
-# 也用不到仓库私钥：pack-crx.mjs 在 dist/ 里找不到 .pem 时会自己生成一对临时密钥，
-# 所以「打包 + 复验」这一步在 CI 里也能完整跑通（生成的密钥随 runner 一起销毁）。
+# 也用不到仓库私钥：pack-crx.mjs --ephemeral 会把密钥生成在临时目录里，
+# 并且**不去改写 manifest.json**（否则每次 CI 都会把扩展 ID 改掉）。
 
 on:
   push:
@@ -59,7 +59,7 @@ jobs:
       # ⑤ 打包（临时密钥）+ ⑥ 用 Python zipfile 独立复验产物
       - name: 重新打包
         working-directory: chrome-extension/tools
-        run: python run-node.py pack-crx.mjs
+        run: python run-node.py pack-crx.mjs --ephemeral
 
       - name: 独立复验打包产物（117 项）
         working-directory: chrome-extension/tools
