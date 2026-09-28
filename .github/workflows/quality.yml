@@ -61,6 +61,13 @@ jobs:
         working-directory: chrome-extension/tools
         run: python run-node.py pack-crx.mjs --ephemeral
 
+      # ⑦ 钉死「打包不改源文件」这条不变量。
+      #    manifest.json 的 "key" 决定扩展 ID —— 被改写就等于所有已装用户的
+      #    chrome.storage 配置全部失联。--ephemeral 的全部意义就是「不碰 manifest」，
+      #    而它曾经因为 run-node.py 丢掉 argv[2:] 而在 CI 里静默失效过。
+      - name: 确认打包没有改写 manifest.json
+        run: git diff --exit-code -- chrome-extension/manifest.json
+
       - name: 独立复验打包产物（117 项）
         working-directory: chrome-extension/tools
         run: python verify-pack.py
