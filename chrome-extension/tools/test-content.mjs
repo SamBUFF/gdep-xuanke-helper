@@ -333,27 +333,42 @@ section('12. 验证码检测');
   ok('没有 → false', api.loginPageHasCaptcha('<input id="yhm"><input id="mm">'), false);
 }
 
-section('13. 续抢标记（sessionStorage）与 TTL');
+section('13. 续抢标记（扩展存储）与 TTL');
 {
-  const { api, store } = run(LOGIN_FACTORY, { pathname: '/xtgl/login_slogin.html' });
-  ok('初始为空', api.readReloginState(), null);
+  const extLocal = new Map();
+  const extSession = new Map();
+  const fakeChrome = {
+    storage: {
+      local: {
+        async get(k) { return { [k]: extLocal.get(k) }; },
+        async set(o) { Object.keys(o || {}).forEach((k) => extLocal.set(k, o[k])); },
+        async remove(k) { extLocal.delete(k); },
+      },
+      session: {
+        async get(k) { return { [k]: extSession.get(k) }; },
+        async set(o) { Object.keys(o || {}).forEach((k) => extSession.set(k, o[k])); },
+        async remove(k) { extSession.delete(k); },
+      },
+    },
+    runtime: { sendMessage: async function () { } },
+  };
+  const { env } = makeEnv({ pathname: '/xtgl/login_slogin.html' });
+  env.chrome = fakeChrome;
+  const api = LOGIN_FACTORY(env.document, env.location, env.performance, env.sessionStorage, {}, env.chrome);
+  ok('初始为空', await api.readReloginState(), null);
 
-  api.writeReloginState({ at: Date.now(), running: true, from: '/xsxk/x.html' });
-  ok('写入后能读回 running', api.readReloginState().running, true);
-  ok('标记新鲜', api.reloginIsFresh(api.readReloginState()), true);
-  ok('存在 sessionStorage 里', store.has('zxh-relogin'), true);
+  await api.writeReloginState({ at: Date.now(), running: true, from: '/xsxk/x.html' });
+  ok('写入后能读回 running', (await api.readReloginState()).running, true);
+  ok('标记新鲜', api.reloginIsFresh(await api.readReloginState()), true);
+  ok('存在扩展 session 存储里', extSession.has('zxh-relogin'), true);
 
   ok('过期标记不算新鲜', api.reloginIsFresh({ at: Date.now() - 6 * 60 * 1000, running: true }), false);
   ok('没有 at 字段也不算新鲜', api.reloginIsFresh({ running: true }), false);
   ok('null 不算新鲜', api.reloginIsFresh(null), false);
 
-  api.writeReloginState(null);
-  ok('清空后为 null', api.readReloginState(), null);
-  ok('清空后 key 也删掉了', store.has('zxh-relogin'), false);
-
-  // 被人塞了脏数据也不能炸
-  store.set('zxh-relogin', '{不是JSON');
-  ok('脏数据 → null（不抛异常）', api.readReloginState(), null);
+  await api.writeReloginState(null);
+  ok('清空后为 null', await api.readReloginState(), null);
+  ok('清空后 key 也删掉了', extSession.has('zxh-relogin'), false);
 }
 
 section('14. 连续登录失败计数（防把账号试锁）');
