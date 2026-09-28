@@ -1460,20 +1460,49 @@
     credTimer = setTimeout(saveCred, 350);
   }
 
-  // ---- 续抢标记：同源跳转间靠 sessionStorage 传递（它会被站点读到，但这里没有敏感信息）----
+  // ---- 续抢标记：放扩展存储，避免被页面脚本伪造 ----
 
   var RELOGIN_KEY = 'zxh-relogin';
   var RELOGIN_TTL = 5 * 60 * 1000;
 
-  function readReloginState() {
-    try { return JSON.parse(sessionStorage.getItem(RELOGIN_KEY) || 'null'); } catch (e) { return null; }
+  async function readReloginState() {
+    if (!hasExtStorage()) return null;
+    if (await ensureSessionArea()) {
+      try {
+        var r = await chrome.storage.session.get(RELOGIN_KEY);
+        if (r && r[RELOGIN_KEY]) return r[RELOGIN_KEY];
+      } catch (e) { /* 落到 local */ }
+    }
+    try {
+      var r2 = await chrome.storage.local.get(RELOGIN_KEY);
+      return (r2 && r2[RELOGIN_KEY]) ? r2[RELOGIN_KEY] : null;
+    } catch (e2) { return null; }
   }
 
-  function writeReloginState(s) {
+  async function writeReloginState(s) {
+    if (!hasExtStorage()) return;
+    if (await ensureSessionArea()) {
+      try {
+        if (s) {
+          var o = {};
+          o[RELOGIN_KEY] = s;
+          await chrome.storage.session.set(o);
+        } else {
+          await chrome.storage.session.remove(RELOGIN_KEY);
+        }
+      } catch (e) { /* 忽略 */ }
+      try { await chrome.storage.local.remove(RELOGIN_KEY); } catch (e2) { /* 忽略 */ }
+      return;
+    }
     try {
-      if (s) sessionStorage.setItem(RELOGIN_KEY, JSON.stringify(s));
-      else sessionStorage.removeItem(RELOGIN_KEY);
-    } catch (e) { /* 忽略 */ }
+      if (s) {
+        var o2 = {};
+        o2[RELOGIN_KEY] = s;
+        await chrome.storage.local.set(o2);
+      } else {
+        await chrome.storage.local.remove(RELOGIN_KEY);
+      }
+    } catch (e3) { /* 忽略 */ }
   }
 
   function reloginIsFresh(s) { return !!(s && s.at && Date.now() - s.at < RELOGIN_TTL); }
@@ -1673,7 +1702,7 @@
       return;
     }
 
-    writeReloginState({ at: Date.now(), running: true, from: location.href, detail: detail || '' });
+    await writeReloginState({ at: Date.now(), running: true, from: location.href, detail: detail || '' });
     log('正在自动重新登录…', 'w');
     await sleep(400);
     location.href = '/xtgl/login_slogin.html';
@@ -1685,22 +1714,22 @@
    * @returns {Promise<boolean>} 是否已经发起并成功（成功时会自行跳走）
    */
   async function autoLoginOnLoginPage() {
-    var st = readReloginState();
+    var st = await readReloginState();
     if (!st || !st.running || !reloginIsFresh(st)) {
-      if (st) writeReloginState(null);
+      if (st) await writeReloginState(null);
       return false;
     }
 
     await loadCred();
     if (CRED.autoRelogin === false || !CRED.user || !CRED.pass) {
-      writeReloginState(null);
+      await writeReloginState(null);
       showLoginTip('抢课途中掉线了，但没有可用的账号密码。\n请在面板「账号」里填好再继续。', 'warn', true);
       return false;
     }
 
     var fails = readLoginFails();
     if (fails.n >= 3) {
-      writeReloginState(null);
+      await writeReloginState(null);
       showLoginTip('已连续登录失败 ' + fails.n + ' 次，停止自动重登（避免账号被锁）。\n请核对密码后手动登录。', 'err', true);
       return false;
     }
@@ -1721,7 +1750,7 @@
 
     // 失败绝不自动重试 —— 密码错了再试还是错，连续试只会把账号试锁
     var n = bumpLoginFails();
-    writeReloginState(null);
+    await writeReloginState(null);
     showLoginTip('自动登录失败（第 ' + n + ' 次）：' + r.error +
       '\n\n已停止自动重登。请在本页手动登录，然后回到选课页重新开始。', 'err', true);
     return false;
@@ -1729,10 +1758,10 @@
 
   // ---- 回到选课页之后：接着抢 ----
 
-  function maybeResumeAfterRelogin() {
-    var st = readReloginState();
+  async function maybeResumeAfterRelogin() {
+    var st = await readReloginState();
     if (!st || !st.running) return false;
-    writeReloginState(null);
+    await writeReloginState(null);
     if (!reloginIsFresh(st)) return false;
     log('已重新登录，' + (OPTS.dryRun ? '接着演练（不会提交）' : '接着抢课') + '…', 's');
     setTimeout(function () { if (!state.running) runLoop(); }, 1200);
@@ -3085,7 +3114,7 @@
       log('接口探测异常：' + e.message, 'e');
     }).then(function () {
       // 无论是刚重登回来，都看一下要不要续抢
-      setTimeout(maybeResumeAfterRelogin, 400);
+      setTimeout(function () { maybeResumeAfterRelogin(); }, 400);
     });
   }, 900);
 
