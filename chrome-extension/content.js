@@ -63,8 +63,9 @@
   /** 服务端 HTML 实体的最小还原（只处理值里真会出现的几个） */
   function decodeEntities(s) {
     return String(s == null ? '' : s)
-      .replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'")
-      .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, ' ');
+      .replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+      .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, ' ')
+      .replace(/&amp;/g, '&');
   }
 
   /**
