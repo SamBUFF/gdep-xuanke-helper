@@ -135,18 +135,6 @@
     return out;
   }
 
-  function bShl1(a) {
-    var out = new Uint16Array(a.length + 1);
-    var carry = 0;
-    for (var i = 0; i < a.length; i++) {
-      var t = (a[i] << 1) | carry;
-      out[i] = t & 0xffff;
-      carry = t >>> 16;
-    }
-    out[a.length] = carry;
-    return out;
-  }
-
   function bBitLen(a) {
     var l = bLen(a);
     if (!l) return 0;
