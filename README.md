@@ -60,6 +60,10 @@ Chrome 不允许安装非商店来源的 `.crx`（报 `CRX_REQUIRED_PROOF_MISSIN
 
 装完去教务系统登录，你会被自动送到「自主选课」页，右下角出现抢课面板。
 
+> 懒得自己打包？[**Releases**](https://github.com/SamBUFF/gdep-xuanke-helper/releases) 里有现成的
+> `zf-xk-helper-2.5.0.zip`（解压后同样走上面第 3~4 步）和 `.crx`（**稳定版 Chrome 装不了**，
+> 见上文那条限制；仅作存档与校验用）。
+
 > 改了代码就回 `chrome://extensions` 点扩展卡片上的 **↻**，再刷新页面，不用重新添加。
 
 ### 命令行

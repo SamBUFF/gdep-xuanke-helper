@@ -141,16 +141,30 @@ CI 里有一条静态断言专门守这两个事实（`verify-pack.py` 的 `[9]`
 
 ## GitHub 侧的安全能力
 
-本仓库是**公开仓库**，因此 GitHub 的 Advanced Security 功能都是免费的，已经接上：
+本仓库是**公开仓库**，因此 GitHub 的 Advanced Security 功能是免费的。下表的状态是**用 API 实测过的**
+（`GET /repos/SamBUFF/gdep-xuanke-helper` 的 `security_and_analysis` 字段），不是"设置页看起来像开了"：
 
-| 能力 | 状态 | 位置 |
+| 能力 | 状态 | 位置 / 说明 |
 |---|---|---|
-| Code scanning（CodeQL） | ✅ 已启用 | [`.github/workflows/codeql.yml`](.github/workflows/codeql.yml)，用 `security-and-quality` 查询套件 |
-| Code quality 查询 | ✅ 同上 | CodeQL 的 quality 查询与安全查询一起跑 |
-| Secret scanning + Push protection | ✅ 已启用 | 仓库 Settings → Code security |
-| Dependabot alerts | ✅ 已启用 | 本项目零依赖，仅用于跟进 Actions 版本 |
+| Code scanning（CodeQL） | ✅ 已启用 | [`.github/workflows/codeql.yml`](.github/workflows/codeql.yml)，`security-and-quality` 查询套件 |
+| Code quality 查询 | ✅ 同上 | CodeQL 的 quality 查询与安全查询一起跑，同一个工作流 |
+| Secret scanning（泄露检测） | ✅ 已启用 | Settings → Code security |
+| Secret scanning **Push protection** | ✅ 已启用 | 同上 —— 密钥在 `git push` 时就被拦下，根本没机会进仓库 |
+| Dependabot alerts | ✅ 已启用 | 本项目零 npm 依赖，主要用来跟进 GitHub Actions 版本 |
+| Dependabot security updates | ✅ 已启用 | 配合 [`.github/dependabot.yml`](.github/dependabot.yml)，每周一 09:00（Asia/Shanghai） |
 | Security policy | ✅ 本文件 | Security 页 → Reporting |
 | 私密漏洞报告 | ✅ 已启用 | 见本文开头 |
+
+有两条**没能开启**——`PATCH` 返回 200，但复查状态仍是 `disabled`，判断为本账号/仓库类型不提供该能力。
+这里如实列出来，不当成"已启用"写：
+
+| 能力 | 状态 |
+|---|---|
+| Secret scanning: non-provider patterns | ⚪ 不可用 |
+| Secret scanning: validity checks | ⚪ 不可用 |
+
+这两条缺失影响不大：它们属于"扫得更宽"的增强项，而本项目真正的凭据防线是下面那两个自建脚本
+（通用扫描器也不知道"扩展 ID 由哪把私钥决定"这种项目内约定）。
 
 > 补充说明：仓库最初是私有的，那时 Security 页显示
 > *「Advanced Security is only available for Organizations」*——
