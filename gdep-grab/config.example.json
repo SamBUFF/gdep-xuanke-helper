@@ -1,0 +1,46 @@
+{
+  "_说明": "复制本文件为 config.json 后填写。password 留空并在环境变量里给也可以（见 passwordEnv）。",
+
+  "baseUrl": "https://zf.gdep.edu.cn",
+
+  "_频率说明": "强烈建议不要低于 1000ms。脚本每次轮询只发 1 个列表查询（命中目标才会追加请求），已做请求最小化。",
+  "intervalMs": 1500,
+  "jitterMs": 500,
+  "maxAttempts": 0,
+  "concurrency": 1,
+  "confirmBeforeSubmit": false,
+
+  "accounts": [
+    {
+      "name": "我的大号",
+      "username": "2026000001",
+      "password": "",
+      "passwordEnv": "ZF_PWD_1",
+      "enabled": true,
+      "targets": [
+        { "course": "篮球" },
+        { "course": "羽毛球", "teacher": "李老师" },
+        { "courseContains": "排球", "preferMostRemain": true }
+      ]
+    },
+    {
+      "name": "帮同学抢的",
+      "username": "2026000002",
+      "password": "明文密码（注意别把这个文件传到网上）",
+      "enabled": false,
+      "targets": [{ "course": "武术" }]
+    }
+  ],
+
+  "_targets 可选字段说明": {
+    "course": "课程名，全等匹配（最常用）",
+    "courseContains": "课程名包含即匹配",
+    "courseRegex": "课程名正则",
+    "courseCode": "课程号（页面上的 kch，如 z290100101）全等匹配",
+    "courseCodeContains": "课程号包含匹配",
+    "kchId": "内部课程 ID（最精确，如 555F80912632984DE065000000000001）",
+    "teacher": "优先选这位老师的教学班（jsxx 字段里包含即命中）；没命中会回退到全部教学班",
+    "classKeyword": "教学班信息里的任意关键词（如上课地点「篮球场」）",
+    "preferMostRemain": "默认 true，按剩余容量从多到少挑教学班"
+  }
+}

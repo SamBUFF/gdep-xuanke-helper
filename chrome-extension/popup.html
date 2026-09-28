@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<style>
+  :root { color-scheme: light; }
+  body {
+    width: 320px; margin: 0; padding: 12px 14px 14px;
+    font: 13px/1.6 -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+    color: #1f2328; background: #fff;
+  }
+  h1 { font-size: 14px; margin: 0 0 2px; font-weight: 600; }
+  .ver { font-size: 11px; color: #8b949e; font-weight: 400; }
+  .status {
+    margin: 10px 0; padding: 8px 10px; border-radius: 7px; font-size: 12px;
+    background: #f6f8fa; border: 1px solid #e6e9ee; white-space: pre-wrap; word-break: break-all;
+  }
+  .status.ok   { background: #f0fbf3; border-color: #a7dcb8; color: #1a7f37; }
+  .status.warn { background: #fff8f0; border-color: #f0c48a; color: #9a6700; }
+  .status.err  { background: #fff8f8; border-color: #e8a0a5; color: #cf222e; }
+  .status b { font-weight: 600; }
+  button {
+    width: 100%; padding: 7px 10px; margin-bottom: 6px;
+    border: 1px solid #d0d7de; border-radius: 6px; background: #f6f8fa;
+    color: #1f2328; font-size: 12.5px; cursor: pointer; font-family: inherit;
+  }
+  button:hover:not(:disabled) { background: #eef1f4; }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  button.pri { background: #0969da; border-color: #0969da; color: #fff; font-weight: 600; }
+  button.pri:hover:not(:disabled) { background: #0860c4; }
+  ol { margin: 10px 0 0; padding-left: 18px; font-size: 12px; color: #57606a; }
+  ol li { margin-bottom: 3px; }
+  code { background: #f6f8fa; border: 1px solid #e6e9ee; border-radius: 4px; padding: 0 3px; font-size: 11px; }
+  .hint { margin-top: 10px; font-size: 11px; color: #8b949e; }
+  hr { border: 0; border-top: 1px solid #e6e9ee; margin: 12px 0; }
+</style>
+</head>
+<body>
+  <h1>正方教务 · 通用选课助手 <span class="ver" id="ver"></span></h1>
+
+  <div class="status" id="status">检测中…</div>
+
+  <button class="pri" id="toggle" disabled>显示 / 折叠面板</button>
+  <button id="goto" hidden>带我去选课页</button>
+  <button id="redetect">重新检测</button>
+
+  <hr>
+
+  <ol>
+    <li>登录教务系统后，<b>不在选课页也会自动把你送到「自主选课」</b></li>
+    <li>在面板「账号」里填好学号密码 → 点「保存并登录」</li>
+    <li>添加目标 → 填课程名 → 点「预览匹配」确认教学班</li>
+    <li>取消勾选「仅演练」→ 点「开始抢课」</li>
+  </ol>
+
+  <div class="hint">
+    <b>不用点页面上的「查询」按钮</b>：扩展直接调用查询接口自己取课程列表，
+    按钮被遮住、在手机视口外、或者页面脚本没跑起来，都照样能查。<br>
+    参数缺失时会自动从服务器页面补齐，并在面板日志里说清楚缺了什么。
+  </div>
+
+  <div class="hint">
+    <b>掉线自动重登</b>：抢课途中如果登录态失效，会自动重新登录并接着抢。<br>
+    密码默认只存在内存里（关闭浏览器即清空），且网页读不到；勾「记住密码」才会持久保存。
+  </div>
+
+  <div class="hint">
+    <b>目标卡片 ⚙ 里还能做更多</b>：按<b>星期 / 节次 / 周次</b>精确挑教学班（支持单双周），
+    勾「本地避开冲突」会用本地课表算一遍省一次往返，填「替换课程号」就是换课（骑驴找马）。<br>
+    <b>定时开抢</b>：填个时刻，到点才开始发请求。<br>
+    <b style="color:#cf222e">「冲突时自动退可退选修课」默认关闭</b>：开了也只退
+    <code>kklxdm=10</code> 且 <code>rwlx=2</code> 的通识选修，必修永远只告警不动手。退选不可逆，先演练。
+  </div>
+
+  <div class="hint">
+    面板跑在页面里，直接用你当前已登录的会话。<br>
+    配置存在扩展自己的存储里（<code>chrome.storage</code>），不碰网站的 localStorage。
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

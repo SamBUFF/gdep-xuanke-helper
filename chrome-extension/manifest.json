@@ -1,0 +1,42 @@
+{
+  "manifest_version": 3,
+  "name": "正方教务 · 通用选课助手",
+  "version": "2.5.0",
+  "description": "正方教务选课助手：不在选课页自动跳到「自主选课」；直接调查询接口，不用点页面「查询」按钮，参数缺失会自动补齐；可存账号密码，掉线自动重登续抢；支持按星期/节次/周次筛选教学班、定时开抢、冲突时自动退可退选修课。默认演练模式。",
+  "minimum_chrome_version": "102",
+  "permissions": [
+    "storage"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*/xsxk/*",
+        "*://*/xtgl/*"
+      ],
+      "js": [
+        "rsa-pkcs1.js",
+        "content.js"
+      ],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ],
+  "action": {
+    "default_title": "正方选课助手",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAm46chde1CeQf2BN2C+AuZ+ugEYhiTzYqVd7QySlIkwEke/VSRf6P0mH40uphmeATX/55Qb9v9DnkMPNsy0tdiStiXH0C4DJhiSzFjZIjY1GRfd2zL47t0bE5dqmenQRr7QehZG8do8watyzbJe25x9FTIOMdqd/UISmuPQ/K0angG9xShwzKVyDT10WWcNUlCjZLAhDEUZZnH2mRgJVbFvzXGLjpUGGA8tpC+OVdFPCi8vIWjCSAx6VkNXvqKu4X6csR2Tv+pP9/oxY/u3Gl4yUXulj8u5lq7Ot7Y9t1aALtBNUvKpMe951PM0ZRAGG5n4eM+LGkCbYa+zBxYyt3yQIDAQAB"
+}
