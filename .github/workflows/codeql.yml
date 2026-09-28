@@ -1,0 +1,62 @@
+name: codeql
+
+# 静态代码扫描。
+#
+# 之前仓库是私有的，CodeQL 需要 GitHub Advanced Security，而 GHAS 不对个人账号的
+# 私有仓库开放（Security 页当时写的是「Advanced Security is only available for
+# Organizations」）。仓库转为 **Public** 之后，CodeQL 对公开仓库免费开放，
+# 所以这里把它接上。
+#
+# 用的是 `security-and-quality` 查询套件：既查安全缺陷，也查代码质量问题
+# （无用代码、易错写法、复杂度等），对应 GitHub 的 Code scanning / Code quality 页面。
+#
+# 结果会出现在：仓库 → Security and quality → Code scanning
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # 每周一 03:17 UTC 跑一次（CodeQL 查询集本身会更新，定期全量扫一遍）
+    - cron: '17 3 * * 1'
+  workflow_dispatch:
+
+jobs:
+  analyze:
+    name: 分析 ${{ matrix.language }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    permissions:
+      # 上传 SARIF 结果到 Security 页需要这个
+      security-events: write
+      # 读取 CodeQL 查询包
+      packages: read
+      actions: read
+      contents: read
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: javascript-typescript
+            build-mode: none
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v7
+
+      - name: 初始化 CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+          # security-and-quality = 安全查询 + 代码质量查询
+          queries: security-and-quality
+
+      # 本仓库是纯 JS/解释型代码，build-mode: none 即可，不需要编译步骤
+      - name: 执行分析
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: '/language:${{ matrix.language }}'

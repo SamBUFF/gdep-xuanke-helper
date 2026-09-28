@@ -1,6 +1,15 @@
 # 正方教务 · 通用选课助手
 
+[![quality](https://github.com/SamBUFF/gdep-xuanke-helper/actions/workflows/quality.yml/badge.svg)](https://github.com/SamBUFF/gdep-xuanke-helper/actions/workflows/quality.yml)
+[![codeql](https://github.com/SamBUFF/gdep-xuanke-helper/actions/workflows/codeql.yml/badge.svg)](https://github.com/SamBUFF/gdep-xuanke-helper/actions/workflows/codeql.yml)
+[![security](https://github.com/SamBUFF/gdep-xuanke-helper/actions/workflows/security.yml/badge.svg)](https://github.com/SamBUFF/gdep-xuanke-helper/actions/workflows/security.yml)
+[![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 面向**正方教务系统**（`zftal-ui-v5` / V-9.0）的自主选课工具 —— **不绑学校、不绑课程、不绑轮次**。
+
+> 🤖 **本项目由 AI 编程助手制作**：**WorkBuddy** + **DeepSeek-V4.1-Flash**。
+> 需求、取舍与验收由人负责；源码、测试、文档由 AI 生成。
+> 这会如何影响安全？请读 [SECURITY.md 里的说明](SECURITY.md#关于-ai-参与本项目的说明)。
 
 两种形态，**二选一**：
 
@@ -96,6 +105,13 @@ python verify-pack.py                    # 独立复验 —— 117 项
 
 当前全绿：**171 + 47 + 30 + 117，0 失败**。
 
+另外两条守卫（也在 CI 里跑）：
+
+```bash
+python tools/check-secrets.py                       # 仓库根：凭据 / 私钥 / 真实学号不得入库
+python chrome-extension/tools/check-permissions.py  # 扩展权限面不得被扩大
+```
+
 > `run-node.py` 只是个薄封装，用来绕开 Windows PowerShell 5.1 的重定向编码问题
 > （`*>` 会写出 UTF-16LE，`| Out-File` 会先按 GBK 解码一次变成乱码）。
 > 直接 `node xxx.mjs` 也能跑，只是中文输出可能乱码。
@@ -103,6 +119,20 @@ python verify-pack.py                    # 独立复验 —— 117 项
 **更细的内容在子 README 里**（接口参数坑、掉线识别、登录 RSA、排障小抄）：
 [`chrome-extension/README.md`](chrome-extension/README.md) ·
 CLI 参数与 `targets` 匹配字段：[`gdep-grab/README.md`](gdep-grab/README.md)
+
+---
+
+## 自动化门禁
+
+三个 GitHub Actions 工作流，每次 push / PR 都跑：
+
+| 工作流 | 做什么 |
+|---|---|
+| [`quality.yml`](.github/workflows/quality.yml) | 语法体检 → 171 条内容脚本单测 → 47 条 RSA 测试 → 30 条登录流程测试 → 打包 → 117 项独立复验 |
+| [`codeql.yml`](.github/workflows/codeql.yml) | CodeQL 静态扫描，`security-and-quality` 查询套件（安全 + 代码质量） |
+| [`security.yml`](.github/workflows/security.yml) | 凭据/私钥守卫 + 扩展权限面回归 |
+
+Dependabot 每周跟进 Actions 版本（本项目**零第三方依赖**，没有 npm 供应链可被投毒）。
 
 ---
 
@@ -115,14 +145,49 @@ CLI 参数与 `targets` 匹配字段：[`gdep-grab/README.md`](gdep-grab/README.
 
 ---
 
-## 隐私与安全
+## 安全与质量
 
-代码**不上传任何数据**：没有埋点、没有遥测、不连任何第三方服务。
-账号密码只存在你本机（扩展存在 `chrome.storage.local`），**仅**用于掉线自动重登。
+完整威胁模型、凭据处理方式与已知风险清单在 **[`SECURITY.md`](SECURITY.md)** —— 建议读一遍再用。要点：
 
-仓库**不包含**（已由 `.gitignore` 排除）：`gdep-grab/config.json`（明文密码）、`logs/`、
-`dist/` 与 `*.pem`（决定扩展 ID 的 RSA 私钥）、`_ref/`、`.workbuddy/`。
-示例配置中出现的姓名与学号均为**占位符**。
+| 问题 | 答案 |
+|---|---|
+| 它会把数据发给谁？ | **谁都不发。** 扩展里没有一条硬编码的外部 URL，4 处 `fetch` 全是相对路径 + `credentials: 'same-origin'`，流量只到你自己的教务站点 |
+| 需要什么权限？ | 只有 `storage`。没有 `tabs` / `cookies` / `webRequest` / `<all_urls>`；注入范围限于 `*/xsxk/*` 与 `*/xtgl/*` |
+| 密码存在哪？ | 默认 `chrome.storage.session`（**仅内存**，关浏览器即没）；勾了「记住密码」才是 `chrome.storage.local`（明文）。**不会进任何日志** |
+| 渲染服务端内容安全吗？ | 5 处 `innerHTML` 汇聚点**全部**套了 `esc()`；结构性渲染一律 `createElement` + `textContent` |
+| 有没有不可逆操作？ | 只有退课，且**默认关闭** + [退选铁律](#退选铁律) 限制只能退通识选修 |
+
+仓库**不包含**（已由 `.gitignore` 排除，且已核对过 **git 全历史**无命中）：`gdep-grab/config.json`（明文密码）、
+`logs/`、`dist/` 与 `*.pem`（决定扩展 ID 的 RSA 私钥）、`_ref/`、`.workbuddy/`。
+示例配置中的姓名与学号均为**占位符**。
+
+**已知风险**（不打算"修"的，请自行判断）：明文密码（用「记住密码」时）、自动重登可能触发账号锁定策略、
+退课不可逆、请求频率可能被风控、以及**脚本抢课在部分院校被认定为违规**。详见 `SECURITY.md`。
+
+---
+
+## 关于本项目的制作说明
+
+**本项目由 AI 编程助手制作。**
+
+| 项 | 值 |
+|---|---|
+| 编程助手 | **WorkBuddy** |
+| 底层模型 | **DeepSeek-V4.1-Flash** |
+| 参与范围 | 全部源码（Chrome 扩展、CLI 版、UserScript）、测试、打包脚本、文档、CI 配置 |
+| 人类工作 | 需求定义、真机实测、逆向结论的验证、安全取舍的最终决定 |
+
+请对这一点保持清醒：**AI 生成的代码可能有作者也没察觉的缺陷**，不要因为它"看起来专业"就默认它安全。
+本项目能提供的保证不是"AI 说没问题"，而是**可复现的检查** —— 上面那些测试与守卫都能自己跑一遍：
+
+```bash
+python tools/check-secrets.py
+python chrome-extension/tools/check-permissions.py
+cd chrome-extension/tools && python run-node.py test-content.mjs && python verify-pack.py
+```
+
+如果你打算把它用在自己学校，建议先读一遍 `content.js` 里的 `submitQuick()` 与 `resolveConflict()` ——
+这两个是唯一会往教务系统写数据的函数。
 
 ---
 

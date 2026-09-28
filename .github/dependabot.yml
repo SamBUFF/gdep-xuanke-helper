@@ -1,0 +1,27 @@
+# Dependabot 配置
+#
+# 本项目**零第三方依赖**：Chrome 扩展不依赖任何 npm 包，CLI 版（gdep-grab/）
+# 只用 Node 内置模块。所以没有 npm/pip 生态需要盯——供应链投毒面基本为零。
+#
+# 唯一值得跟进的是 GitHub Actions 的版本（工作流里引用的 actions/* 会随主版本更新）。
+# 这里让它每周提一次 PR。注意：Dependabot 的**漏洞告警**需要在
+# Settings → Code security 里单独打开（本仓库已开）。
+
+version: 2
+
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '09:00'
+      timezone: Asia/Shanghai
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: 'ci'
+    groups:
+      # 把同一次 Actions 生态的升级合并成一个 PR，少刷屏
+      github-actions:
+        patterns:
+          - '*'

@@ -1,0 +1,75 @@
+name: quality
+
+# 质量门禁：每次 push / PR 都跑一遍全量自测。
+# 这里跑的东西**不需要浏览器**——把 content.js 里的纯函数切片抽出来离线跑。
+# 也用不到仓库私钥：pack-crx.mjs 在 dist/ 里找不到 .pem 时会自己生成一对临时密钥，
+# 所以「打包 + 复验」这一步在 CI 里也能完整跑通（生成的密钥随 runner 一起销毁）。
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# 只读权限：这个工作流不需要写任何东西
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    name: 语法 · 单元测试 · 打包自检
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v7
+
+      - name: 准备 Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+
+      - name: 准备 Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      # ① 语法体检：rsa-pkcs1.js / content.js / popup.js / background.js / manifest.json
+      #    任何一个文件缺失或语法错误 -> 非 0 退出
+      - name: 语法体检
+        working-directory: chrome-extension/tools
+        run: python check-syntax.py
+
+      # ② 判定 / 跳转 / 参数层 / 登录解析 / 时间解析 / 退选规则
+      - name: 内容脚本单测（171 条）
+        working-directory: chrome-extension/tools
+        run: python run-node.py test-content.mjs
+
+      # ③ 纯 JS RSAES-PKCS1-v1_5 的往返正确性
+      - name: RSA 往返测试（47 条）
+        working-directory: chrome-extension/tools
+        run: python run-node.py test-rsa.mjs
+
+      # ④ doLogin 端到端（假 fetch）
+      - name: 登录流程测试（30 条）
+        working-directory: chrome-extension/tools
+        run: python run-node.py test-login-flow.mjs
+
+      # ⑤ 打包（临时密钥）+ ⑥ 用 Python zipfile 独立复验产物
+      - name: 重新打包
+        working-directory: chrome-extension/tools
+        run: python run-node.py pack-crx.mjs
+
+      - name: 独立复验打包产物（117 项）
+        working-directory: chrome-extension/tools
+        run: python verify-pack.py
+
+      - name: 失败时保留日志
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-logs
+          path: chrome-extension/tools/_*.txt
+          if-no-files-found: ignore
+          retention-days: 7

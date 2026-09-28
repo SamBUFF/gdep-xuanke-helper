@@ -1,0 +1,46 @@
+name: security
+
+# 安全门禁。
+#
+# 为什么不用 GitHub 自带的那些？
+#   本仓库是**个人账号下的私有仓库**，Secret Protection / Code scanning（CodeQL）
+#   都要求 GitHub Advanced Security，而 GHAS 不对个人账号的私有仓库开放——
+#   Security 页上写得很明白：「Advanced Security is only available for Organizations」。
+#   所以这里用自己写的脚本兜住同等性质的防线。
+#
+# 本地也能跑：python tools/check-secrets.py
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  guard:
+    name: 凭据守卫 · 权限面
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v7
+
+      - name: 准备 Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      # ① 不该入库的文件 + 凭据特征串 + 真实学号
+      - name: 扫描受版本控制的文件
+        run: python tools/check-secrets.py -v
+
+      # ② 扩展的权限面一旦被扩大，这里就红。
+      #    本项目对站点只做一件事：在教务页上发同源请求。它不需要 tabs / cookies /
+      #    webRequest / <all_urls>。权限变大 = 攻击面变大，必须显式确认过才能放行。
+      - name: 扩展权限面不得扩大
+        working-directory: chrome-extension/tools
+        run: python check-permissions.py
